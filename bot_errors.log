@@ -105,3 +105,9 @@ AttributeError: 'coroutine' object has no attribute 'subscription_type'
 2026-04-29 12:48:36,410 - gpt_bot - ERROR - Ошибка API при отправке заглушки: {"code":"chat.not.found","message":"Chat 283226333 not found"}
 2026-04-29 12:53:27,584 - gpt_bot - ERROR - Ошибка API при отправке заглушки: {"code":"chat.not.found","message":"Chat 283226333 not found"}
 2026-04-29 13:11:16,622 - gpt_bot - ERROR - Ошибка API при отправке заглушки: {"code":"chat.not.found","message":"Chat 283226333 not found"}
+2026-04-29 16:45:13,630 - gpt_bot - ERROR - Ошибка вебхука: cannot access local variable 'sub_id' where it is not associated with a value
+Traceback (most recent call last):
+  File "D:\Programingg\VSCodeProjects\gpt_bot\handlers.py", line 147, in handle_max_webhook
+    available_requests = DEFAULT_SUBSCRIPTION[sub_id]['requests']
+                                              ^^^^^^
+UnboundLocalError: cannot access local variable 'sub_id' where it is not associated with a value

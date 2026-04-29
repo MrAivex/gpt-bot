@@ -1,6 +1,7 @@
 import asyncpg
 from logger_config import logger
 from config import DB_DSN, ADMIN_ID
+from subscriptions_config import DEFAULT_SUBSCRIPTION
 
 class DatabaseManager:
     def __init__(self):
@@ -112,22 +113,30 @@ class DatabaseManager:
                                
                     subscription_start = CURRENT_TIMESTAMP,
                     -- Прибавляем дни к текущему времени прямо в SQL
-                    subscription_end = CURRENT_TIMESTAMP + ($3 || ' days')::interval,
+                    subscription_end = CURRENT_TIMESTAMP + ($3 || ' days')::interval
                 
                 WHERE user_id = $2
             ''', sub_id,  int(user_id), str(duration_days))
             logger.info(f"Подписка {sub_id} прописана в БД для {user_id}")
     
-    async def deactivate_expired_subscriptions(self):
+    async def deactivate_expired_subscriptions(self, sub_id):
         """Сбрасывает просроченные подписки в 'inactive'"""
         async with self.pool.acquire() as conn:
+            logger.info("okak")
+            available_requests = DEFAULT_SUBSCRIPTION[sub_id]['requests']
             # Находим всех, у кого дата окончания меньше текущей и статус не 'inactive'
             result = await conn.execute('''
                 UPDATE users 
-                SET subscription_status = 'inactive'
+                SET subscription_status = $1,
+                    available_queries = $2,
+                    subscription_start = CURRENT_TIMESTAMP,
+                    subscription_end = CURRENT_TIMESTAMP,
+                    last_active = CURRENT_TIMESTAMP,
+                    used_queries = 0
+                                        
                 WHERE subscription_end < CURRENT_TIMESTAMP 
                   AND subscription_status != 'inactive'
-            ''')
+            ''', str(sub_id), int(available_requests))
             return result
 
     # В database.py

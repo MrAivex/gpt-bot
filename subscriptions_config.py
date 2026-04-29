@@ -1,5 +1,13 @@
 # subscriptions_config.py
 
+DEFAULT_SUBSCRIPTION = {
+    "inactive": {
+        "name": "Нет подписки",
+        "requests": 0
+
+    }
+}
+
 AVAILABLE_SUBSCRIPTIONS = {
     "sub_5": {
         "name": "5 запросов в день на месяц",

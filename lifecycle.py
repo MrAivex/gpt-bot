@@ -21,7 +21,7 @@ async def check_subscriptions_task():
     """Фоновая задача для проверки просрочки"""
     try:
         logger.info("Проверка истекших подписок...")
-        await db.deactivate_expired_subscriptions()
+        await db.deactivate_expired_subscriptions("inactive")
     except Exception as e:
         logger.error(f"Ошибка в задаче проверки подписок: {e}")
 

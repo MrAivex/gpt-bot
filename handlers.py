@@ -6,7 +6,7 @@ from workers import worker_manager
 from config import WEBHOOK_PATH
 from database import db # Импортируем базу для очистки
 from payments import create_payment_link # <-- Вот этот импорт спасет мир!
-from subscriptions_config import AVAILABLE_SUBSCRIPTIONS
+from subscriptions_config import AVAILABLE_SUBSCRIPTIONS, DEFAULT_SUBSCRIPTION
 from datetime import datetime, timedelta
 
 class WebhookHandler:
@@ -144,6 +144,7 @@ class WebhookHandler:
                     return web.Response(status=200)
 
                 if final_cmd == "/help":
+                    await db.deactivate_expired_subscriptions("inactive")
                     help_text = "📖 *Доступные команды:*\n/start\n/clear\n/help"
                     # Формат клавиатуры из твоего предыдущего сообщения
                     reply_markup = [{
