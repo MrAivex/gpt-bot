@@ -17,6 +17,14 @@ async def scheduled_cleanup():
     except Exception as e:
         logger.error(f"Ошибка при выполнении плановой очистки: {e}")
 
+async def check_subscriptions_task():
+    """Фоновая задача для проверки просрочки"""
+    try:
+        logger.info("Проверка истекших подписок...")
+        await db.deactivate_expired_subscriptions()
+    except Exception as e:
+        logger.error(f"Ошибка в задаче проверки подписок: {e}")
+
 async def on_startup(app):
     """Логика при запуске сервера"""
     # 1. Подключаемся к БД
@@ -39,6 +47,10 @@ async def on_startup(app):
         logger.error(f"Не удалось зарегистрировать вебхук: {e}")
 
     # 3. Настройка планировщика
+
+    # Запускаем проверку итсекших подписок каждый час
+    scheduler.add_job(check_subscriptions_task, 'cron', hour=4, minute=0)
+
     # Запускаем очистку каждый день в 3:00 ночи
     scheduler.add_job(scheduled_cleanup, 'cron', hour=3, minute=0)
     
@@ -46,7 +58,6 @@ async def on_startup(app):
     # scheduler.add_job(scheduled_cleanup) 
     
     scheduler.start()
-    logger.info("Планировщик задач запущен (очистка базы раз в сутки в 03:00).")
     logger.info("Бот готов к работе!")
 
 async def on_cleanup(app):

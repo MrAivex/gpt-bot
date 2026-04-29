@@ -11,7 +11,6 @@ class DatabaseManager:
         try:
             self.pool = await asyncpg.create_pool(DB_DSN)
             async with self.pool.acquire() as conn:
-                # Объединяем создание всех таблиц в один блок
                 await conn.execute('''
                     -- Таблица пользователей и лимитов
                     CREATE TABLE IF NOT EXISTS users (
@@ -19,9 +18,19 @@ class DatabaseManager:
                         used_queries INTEGER DEFAULT 0,
                         available_queries INTEGER DEFAULT 10,
                         total_queries INTEGER DEFAULT 0,
-                        subscription_type TEXT DEFAULT 'free',
+                        subscription_type TEXT DEFAULT 'inactive',
+                        subscription_start TIMESTAMP,
+                        subscription_end TIMESTAMP,
                         last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
+                                   
+                    -- Миграция: добавляем колонки дат, если их нет
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_start TIMESTAMP;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_end TIMESTAMP;
+                    
+                    -- Добавляем колонку "Подписка", если она отсутствует (для существующих БД)
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'inactive';
+                    
                     CREATE INDEX IF NOT EXISTS idx_user_id ON users(user_id);
 
                     -- Таблица истории сообщений (память)
@@ -34,7 +43,7 @@ class DatabaseManager:
                     );
                     CREATE INDEX IF NOT EXISTS idx_history_user ON chat_history(user_id);
                 ''')
-            logger.info("Пул PostgreSQL и таблицы инициализированы.")
+            logger.info("Пул PostgreSQL и таблицы инициализированы с полем подписки.")
         except Exception as e:
             logger.error(f"Ошибка подключения к БД: {e}")
             raise
@@ -55,6 +64,14 @@ class DatabaseManager:
                 SET last_active = CURRENT_TIMESTAMP
             ''', user_id)
             logger.info(f"Пользователь {user_id} проверен/зарегистрирован в БД")
+
+    async def get_user(self, user_id: int):
+        """Получает данные пользователя из базы"""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow('SELECT * FROM users WHERE user_id = $1', user_id)
+            if row:
+                return dict(row) # Превращаем запись в обычный словарь
+            return None
 
     async def check_and_update_user(self, user_id: int):
         """Проверяет лимиты и обновляет счетчик запросов"""
@@ -82,6 +99,36 @@ class DatabaseManager:
                 "INSERT INTO chat_history (user_id, role, content) VALUES ($1, $2, $3)",
                 user_id, role, content
             )
+
+    async def update_user_subscription(self, user_id, sub_id, duration_days):
+        """Активирует подписку пользователю"""
+        async with self.pool.acquire() as conn:
+            # Например, устанавливаем статус и сбрасываем счетчик использованных запросов
+            await conn.execute('''
+                UPDATE users 
+                SET subscription_status = $1, 
+                    used_queries = 0,
+                    last_active = CURRENT_TIMESTAMP 
+                               
+                    subscription_start = CURRENT_TIMESTAMP,
+                    -- Прибавляем дни к текущему времени прямо в SQL
+                    subscription_end = CURRENT_TIMESTAMP + ($3 || ' days')::interval,
+                
+                WHERE user_id = $2
+            ''', sub_id,  int(user_id), str(duration_days))
+            logger.info(f"Подписка {sub_id} прописана в БД для {user_id}")
+    
+    async def deactivate_expired_subscriptions(self):
+        """Сбрасывает просроченные подписки в 'inactive'"""
+        async with self.pool.acquire() as conn:
+            # Находим всех, у кого дата окончания меньше текущей и статус не 'inactive'
+            result = await conn.execute('''
+                UPDATE users 
+                SET subscription_status = 'inactive'
+                WHERE subscription_end < CURRENT_TIMESTAMP 
+                  AND subscription_status != 'inactive'
+            ''')
+            return result
 
     # В database.py
     async def get_recent_history(self, user_id: int, limit: int = 10):
